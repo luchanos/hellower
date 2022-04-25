@@ -39,4 +39,8 @@ func main() {
 	for i := 0; i < len(notes_new); i++ {
 		fmt.Println(notes_new[i])
 	}
+
+	for index, value := range notes_new {
+		fmt.Println(index, value)
+	}
 }
