@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"hellower/headsfirst/keyboard"
+	"hellower/theirs/github.com/luchanos/hellower/keyboard"
 	"log"
 )
 
