@@ -16,9 +16,6 @@ func makeRerquest() {
 		data, err := reader.ReadString('\n')
 		errorhandler.ErrorHandler(err, "smth went wrong")
 		fmt.Fprintf(conn, data)
-		status, err := bufio.NewReader(conn).ReadString('\n')
-		errorhandler.ErrorHandler(err, "unable to send request")
-		fmt.Println(status)
 	}
 }
 
