@@ -52,7 +52,22 @@ func MakeWarcAction(wt WarTransport) {
 	wt.Move()
 }
 
+type Wallet struct {
+	Money int
+}
+
+func (w *Wallet) String() string {
+	return "вот столько деняк!!!"
+}
+
+type Stringer interface {
+	String()
+}
+
 func main() {
-	wc := WarCar{&Machinegun{1}, &Car{Fuel: 1, EngineStatus: "good"}}
-	MakeWarcAction(&wc)
+	//wc := WarCar{&Machinegun{1}, &Car{Fuel: 1, EngineStatus: "good"}}
+	//MakeWarcAction(&wc)
+
+	wallet := &Wallet{100}
+	fmt.Printf("test %s", wallet)
 }
