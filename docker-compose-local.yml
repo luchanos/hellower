@@ -1,0 +1,16 @@
+version: "3.7"
+services:
+  rabbit_mq_client:
+    image: rabbitmq:3.10.0-management-alpine
+    ports:
+      - 15672:15672
+      - 5672:5672
+    networks:
+      - custom
+    environment:
+      DEFAULT_PASS: guest
+      DEFAULT_USER: guest
+
+networks:
+  custom:
+    driver: bridge
