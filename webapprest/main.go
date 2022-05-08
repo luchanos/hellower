@@ -36,9 +36,17 @@ func (rmqClient *RabbitMQClient) ConnectToRabbit() {
 	FailOnError(err, "failed to create an exchange")
 }
 
+func (rmqClient *RabbitMQClient) PublishMessageToRabbit() {
+	err := rmqClient.Ch.Publish("logs", "", false, false, amqp.Publishing{ContentType: "text/plain", Body: []byte{1, 2, 3}})
+	FailOnError(err, "unable to send message to rabbit!")
+	fmt.Println("SENT!")
+}
+
 func (rmqClient *RabbitMQClient) CloseConnectionToRabbit() {
 	rmqClient.Ch.Close()
 	rmqClient.Conn.Close()
+	rmqClient.Ch = nil
+	rmqClient.Conn = nil
 	fmt.Printf("connection to rabbit has been closed")
 }
 
@@ -63,7 +71,11 @@ func (App *Application) RunApp() {
 		} else if answer == "2" {
 			App.RMQClient.CloseConnectionToRabbit()
 		} else if answer == "3" {
-			break
+			if (App.RMQClient.Ch != nil) && (App.RMQClient.Conn != nil) {
+				App.RMQClient.PublishMessageToRabbit()
+			} else {
+				fmt.Println("Channel and conn is not created!")
+			}
 		}
 
 	}
