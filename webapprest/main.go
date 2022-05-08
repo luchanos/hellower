@@ -6,6 +6,7 @@ import (
 	"github.com/streadway/amqp"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -69,8 +70,10 @@ func (rmqConsumer *RabbitMQConsumer) ConsumeFromRabbit() {
 	forever := make(chan bool)
 
 	go func() {
+		runtime.Gosched()
 		for d := range msgs {
 			log.Printf(" [x] %s", d.Body)
+			runtime.Gosched()
 		}
 	}()
 
