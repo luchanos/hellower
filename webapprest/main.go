@@ -21,6 +21,12 @@ type RabbitMQClient struct {
 	Ch     *amqp.Channel
 }
 
+type RabbitMQConsumer struct {
+	RmqUrl string
+	Conn   *amqp.Connection
+	Ch     *amqp.Channel
+}
+
 func (rmqClient *RabbitMQClient) ConnectToRabbit() {
 	conn, err := amqp.Dial(rmqClient.RmqUrl)
 	FailOnError(err, "failed to connect to RabbitMQ")
@@ -34,6 +40,42 @@ func (rmqClient *RabbitMQClient) ConnectToRabbit() {
 
 	err = ch.ExchangeDeclare("logs", "fanout", true, false, false, false, nil)
 	FailOnError(err, "failed to create an exchange")
+}
+
+func (rmqConsumer *RabbitMQConsumer) ConnectToRabbit() {
+	conn, err := amqp.Dial(rmqConsumer.RmqUrl)
+	FailOnError(err, "failed to connect to RabbitMQ")
+	rmqConsumer.Conn = conn
+
+	ch, err := conn.Channel()
+	FailOnError(err, "failed to open a channel")
+	rmqConsumer.Ch = ch
+
+	fmt.Printf("connection to rabbit has been created")
+
+	err = ch.ExchangeDeclare("logs", "fanout", true, false, false, false, nil)
+	FailOnError(err, "failed to create an exchange")
+}
+
+func (rmqConsumer *RabbitMQConsumer) ConsumeFromRabbit() {
+	rmqConsumer.ConnectToRabbit()
+	q, err := rmqConsumer.Ch.QueueDeclare("", false, false, true, false, nil)
+	FailOnError(err, "error due to setup consumer")
+	err = rmqConsumer.Ch.QueueBind(q.Name, "", "logs", false, nil)
+	FailOnError(err, "failed to bind a queue")
+
+	msgs, err := rmqConsumer.Ch.Consume(q.Name, "", true, false, false, false, nil)
+
+	forever := make(chan bool)
+
+	go func() {
+		for d := range msgs {
+			log.Printf(" [x] %s", d.Body)
+		}
+	}()
+
+	log.Printf(" [*] waiting for logs")
+	<-forever
 }
 
 func (rmqClient *RabbitMQClient) PublishMessageToRabbit() {
@@ -51,12 +93,17 @@ func (rmqClient *RabbitMQClient) CloseConnectionToRabbit() {
 }
 
 type Application struct {
-	Name      string
-	RMQClient RabbitMQClient
+	Name        string
+	RMQClient   RabbitMQClient
+	RMQConsumer RabbitMQConsumer
 }
 
 func (App *Application) CloseConnectionToRMQ() {
 	App.RMQClient.CloseConnectionToRabbit()
+}
+
+func (RabbitMQConsumer) Run() {
+
 }
 
 func (App *Application) RunApp() {
@@ -76,6 +123,8 @@ func (App *Application) RunApp() {
 			} else {
 				fmt.Println("Channel and conn is not created!")
 			}
+		} else if answer == "4" {
+			App.RMQConsumer.ConsumeFromRabbit()
 		}
 
 	}
@@ -83,13 +132,15 @@ func (App *Application) RunApp() {
 
 func (App *Application) SetupResources() {
 	App.RMQClient.ConnectToRabbit()
+	App.RMQConsumer.ConsumeFromRabbit()
 	fmt.Println("resources has been set up")
 }
 
 func main() {
 	RmqURL := "amqp://guest:guest@0.0.0.0:5672"
 	RmqCLient := RabbitMQClient{RmqURL, nil, nil}
+	RmqConsumer := RabbitMQConsumer{RmqURL, nil, nil}
 
-	app := Application{"myApp", RmqCLient}
+	app := Application{"myApp", RmqCLient, RmqConsumer}
 	app.RunApp()
 }
