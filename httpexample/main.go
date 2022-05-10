@@ -13,11 +13,32 @@ func ErrorHandler(err error, msg string) {
 
 }
 
+type Handler struct {
+	Name string
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, err := fmt.Fprintln(w, "Name:", h.Name, "URL:", r.URL.String())
+	ErrorHandler(err, "Smth went wrong in ServeHTTP")
+}
+
 func handler(w http.ResponseWriter, r *http.Request) {
 	_, err := fmt.Fprintln(w, "Привет, мир!")
 	ErrorHandler(err, "smth went wrong!")
 	_, err = w.Write([]byte("!!!"))
 	ErrorHandler(err, "smth went wrong!")
+}
+
+func Example2() {
+	testHandler := &Handler{"myHandler"}
+	http.Handle("/test/", testHandler)
+
+	rootHandler := &Handler{"myRootHandler"}
+	http.Handle("/", rootHandler)
+
+	fmt.Println("starting server at :8080")
+	err := http.ListenAndServe(":8080", nil)
+	ErrorHandler(err, "smth wend wrong in Ex2")
 }
 
 func Example1() {
@@ -41,5 +62,5 @@ func Example1() {
 }
 
 func main() {
-	Example1()
+	Example2()
 }
