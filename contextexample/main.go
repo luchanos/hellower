@@ -20,15 +20,15 @@ func worker(ctx context.Context, workerNum int, out chan<- int) {
 }
 
 func Example1() {
-	ctx, finish := context.WithCancel(context.Background())
+	ctx, finish := context.WithCancel(context.Background()) // тут вернулся сам контекст и функция отмены
 	result := make(chan int, 1)
 	for i := 0; i <= 10; i++ {
-		go worker(ctx, i, result)
+		go worker(ctx, i, result) // контекст передается первым аргументом
 	}
 
-	foundBy := <-result
+	foundBy := <-result // дожидаемся первого результата
 	fmt.Println("result found by", foundBy)
-	finish()
+	finish() // поскольку мы его дождались - дальше вызываем функцию отмены
 	time.Sleep(time.Second)
 }
 
