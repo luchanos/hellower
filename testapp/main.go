@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func handler(w http.ResponseWriter, r *http.Request) {
+func handler(w http.ResponseWriter, r *http.Request, other string) {
 	myParam := r.URL.Query().Get("param")
 	if myParam != "" {
 		fmt.Fprintln(w, "myParam is ", myParam)
@@ -93,36 +93,50 @@ func (rmqClient *RabbitMQClient) ConsumeMessages(queue string) {
 	log.Printf(" [*] waiting for logs")
 }
 
+type MyServer struct {
+	server http.Server
+}
+
+// todo вот тут надо дописать
+func Requester(param string) http.HandlerFunc {
+	fmt.Println(123)
+	f := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(31231231231)
+		fmt.Fprintln(w, "TEST!!!", r.URL.String())
+	}
+	return http.HandlerFunc(f)
+}
+
+func makeServer(addr string) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", Requester("test"))
+	return mux
+}
+
+func runServer(addr string) {
+	mux := makeServer(addr)
+
+	server := http.Server{
+		Addr:    addr,
+		Handler: mux,
+	}
+	fmt.Println("starting a new server at", addr)
+	server.ListenAndServe()
+}
+
 func main() {
 	url := "amqp://guest:guest@0.0.0.0:5672"
-	rmqSender := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
-	rmqSender.SetupRabbitMQClient()
+	rmqClient := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
+	rmqClient.SetupRabbitMQClient()
 
-	rmqConsumer := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
-	rmqConsumer.SetupRabbitMQClient()
-
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
-			fmt.Println("1")
-			runtime.Gosched()
-		}
-	}()
+	go runServer(":8081")
 
 	go func() {
 		for {
-			time.Sleep(1 * time.Second)
-			fmt.Println("2")
-			runtime.Gosched()
+			rmqClient.SendMessage("hello", "тестовое сообщение")
 		}
 	}()
 
-	go func() {
-		for {
-			rmqSender.SendMessage("hello", "тестовое сообщение")
-		}
-	}()
-
-	rmqConsumer.ConsumeMessages("hello")
+	rmqClient.ConsumeMessages("hello")
 	fmt.Scanln()
 }
