@@ -3,18 +3,23 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"hellower/errorhandler"
 	"net"
 	"os"
 )
 
+func ErrorHandler(err error, msg string) {
+	if err != nil {
+		fmt.Printf("%s %s", err, msg)
+	}
+}
+
 func makeRerquest() {
 	conn, err := net.Dial("tcp", "0.0.0.0:8080")
-	errorhandler.ErrorHandler(err, "unable to connect to host!")
+	ErrorHandler(err, "unable to connect to host!")
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		data, err := reader.ReadString('\n')
-		errorhandler.ErrorHandler(err, "smth went wrong")
+		ErrorHandler(err, "smth went wrong")
 		fmt.Fprintf(conn, data)
 	}
 }

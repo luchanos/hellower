@@ -3,10 +3,15 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"hellower/errorhandler"
 	"net"
 	"time"
 )
+
+func ErrorHandler(err error, msg string) {
+	if err != nil {
+		fmt.Printf("%s %s", err, msg)
+	}
+}
 
 func HandleConnection(conn net.Conn) {
 
@@ -23,7 +28,7 @@ func HandleConnection(conn net.Conn) {
 		conn.SetReadDeadline(time.Now().Add(timeoutDuration))
 
 		bytes, err := bufReader.ReadBytes('\n')
-		errorhandler.ErrorHandler(err, "unable to read received bytes")
+		ErrorHandler(err, "unable to read received bytes")
 
 		fmt.Printf("%s", bytes)
 		fmt.Fprintf(conn, "I've got it!")
@@ -33,7 +38,7 @@ func HandleConnection(conn net.Conn) {
 
 func main() {
 	listener, err := net.Listen("tcp", ":8080")
-	errorhandler.ErrorHandler(err, "unable to create server")
+	ErrorHandler(err, "unable to create server")
 
 	defer func() {
 		listener.Close()
@@ -42,7 +47,7 @@ func main() {
 
 	for {
 		conn, err := listener.Accept()
-		errorhandler.ErrorHandler(err, "unable to get connection with client")
+		ErrorHandler(err, "unable to get connection with client")
 		go HandleConnection(conn)
 	}
 }
