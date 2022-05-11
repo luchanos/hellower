@@ -80,20 +80,16 @@ func (rmqClient *RabbitMQClient) SendMessage(queue, msg string) {
 func (rmqClient *RabbitMQClient) ConsumeMessages(queue string) {
 	q, err := rmqClient.Ch.QueueDeclare(queue, false, false, false, false, nil)
 	failOnError(err, "error due to setup consumer")
-	//err = rmqClient.Ch.QueueBind(q.Name, "", "", false, nil)
-	//failOnError(err, "failed to bind a queue")
 
 	msgs, err := rmqClient.Ch.Consume(q.Name, "", true, false, false, false, nil)
 
 	go func() {
 		runtime.Gosched()
 		for d := range msgs {
-			time.Sleep(1 * time.Second)
 			log.Printf(" [x] %s", d.Body)
 			runtime.Gosched()
 		}
 	}()
-
 	log.Printf(" [*] waiting for logs")
 }
 
@@ -127,11 +123,6 @@ func main() {
 		}
 	}()
 
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
-			rmqConsumer.ConsumeMessages("hello")
-		}
-	}()
+	rmqConsumer.ConsumeMessages("hello")
 	fmt.Scanln()
 }
