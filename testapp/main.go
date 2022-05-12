@@ -9,23 +9,6 @@ import (
 	"time"
 )
 
-func handler(w http.ResponseWriter, r *http.Request, other string) {
-	myParam := r.URL.Query().Get("param")
-	if myParam != "" {
-		fmt.Fprintln(w, "myParam is ", myParam)
-	}
-
-	key := r.FormValue("key")
-	if key != "" {
-		fmt.Fprintln(w, "key is", key)
-	}
-}
-
-func rabbitSendMsgHandler(w http.ResponseWriter, r *http.Request) {
-	// надо прокинуть канал, через который будут общаться горутины
-	fmt.Fprintln(w, "Success!")
-}
-
 func failOnError(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %s", msg, err)
@@ -47,7 +30,7 @@ func (rmqClient *RabbitMQClient) SetupRabbitMQClient() {
 	failOnError(err, "failed to open a channel")
 	rmqClient.Ch = ch
 
-	fmt.Printf("connection to rabbit has been created")
+	fmt.Println("connection to rabbit has been created")
 }
 
 func (rmqClient *RabbitMQClient) SendMessage(queue, msg string) {
@@ -97,24 +80,37 @@ type MyServer struct {
 	server http.Server
 }
 
-// todo вот тут надо дописать
-func Requester(param string) http.HandlerFunc {
-	fmt.Println(123)
+func StartSender(param string, rmqClient *RabbitMQClient) http.HandlerFunc {
 	f := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(31231231231)
-		fmt.Fprintln(w, "TEST!!!", r.URL.String())
+		fmt.Println(param)
+		go func() {
+			for {
+				rmqClient.SendMessage("hello", "тестовое сообщение")
+			}
+		}()
+		fmt.Fprintln(w, "RMQ sender had been start!!!", r.URL.String())
 	}
 	return http.HandlerFunc(f)
 }
 
-func makeServer(addr string) *http.ServeMux {
+func StartConsumer(param string, rmqClient *RabbitMQClient) http.HandlerFunc {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(param)
+		rmqClient.ConsumeMessages("hello")
+		fmt.Fprintln(w, "RMQ consumer had been start!!!", r.URL.String())
+	}
+	return http.HandlerFunc(f)
+}
+
+func makeServer(addr string, rmqClient *RabbitMQClient) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", Requester("test"))
+	mux.HandleFunc("/start_sender", StartSender("sender", rmqClient))
+	mux.HandleFunc("/start_consumer", StartConsumer("consumer", rmqClient))
 	return mux
 }
 
-func runServer(addr string) {
-	mux := makeServer(addr)
+func runServer(addr string, rmqClient *RabbitMQClient) {
+	mux := makeServer(addr, rmqClient)
 
 	server := http.Server{
 		Addr:    addr,
@@ -129,14 +125,6 @@ func main() {
 	rmqClient := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
 	rmqClient.SetupRabbitMQClient()
 
-	go runServer(":8081")
-
-	go func() {
-		for {
-			rmqClient.SendMessage("hello", "тестовое сообщение")
-		}
-	}()
-
-	rmqClient.ConsumeMessages("hello")
+	go runServer(":8081", &rmqClient)
 	fmt.Scanln()
 }
