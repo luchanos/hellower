@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/streadway/amqp"
 	"log"
@@ -60,32 +61,39 @@ func (rmqClient *RabbitMQClient) SendMessage(queue, msg string) {
 
 }
 
-func (rmqClient *RabbitMQClient) ConsumeMessages(queue string) {
+func (rmqClient *RabbitMQClient) ConsumeMessages(queue string, ctx context.Context) {
 	q, err := rmqClient.Ch.QueueDeclare(queue, false, false, false, false, nil)
 	failOnError(err, "error due to setup consumer")
-
 	msgs, err := rmqClient.Ch.Consume(q.Name, "", true, false, false, false, nil)
 
 	go func() {
 		runtime.Gosched()
 		for d := range msgs {
-			log.Printf(" [x] %s", d.Body)
-			runtime.Gosched()
+			select {
+			case <-ctx.Done():
+				fmt.Println("Consumer stopped!")
+				return
+			default:
+				log.Printf(" [x] %s", d.Body)
+				runtime.Gosched()
+			}
 		}
 	}()
 	log.Printf(" [*] waiting for logs")
 }
 
-type MyServer struct {
-	server http.Server
-}
-
-func StartSender(param string, rmqClient *RabbitMQClient) http.HandlerFunc {
+func StartSender(param string, rmqClient *RabbitMQClient, ctx context.Context) http.HandlerFunc {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(param)
 		go func() {
 			for {
-				rmqClient.SendMessage("hello", "тестовое сообщение")
+				select {
+				case <-ctx.Done():
+					fmt.Fprintln(w, "RMQ sender had been finished!!!", r.URL.String())
+					return
+				default:
+					rmqClient.SendMessage("hello", "тестовое сообщение")
+				}
 			}
 		}()
 		fmt.Fprintln(w, "RMQ sender had been start!!!", r.URL.String())
@@ -93,19 +101,40 @@ func StartSender(param string, rmqClient *RabbitMQClient) http.HandlerFunc {
 	return http.HandlerFunc(f)
 }
 
-func StartConsumer(param string, rmqClient *RabbitMQClient) http.HandlerFunc {
+func StartConsumer(param string, rmqClient *RabbitMQClient, ctx context.Context) http.HandlerFunc {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(param)
-		rmqClient.ConsumeMessages("hello")
+		rmqClient.ConsumeMessages("hello", ctx)
 		fmt.Fprintln(w, "RMQ consumer had been start!!!", r.URL.String())
+	}
+	return http.HandlerFunc(f)
+}
+
+func StopSender(param string, rmqClient *RabbitMQClient, finish context.CancelFunc) http.HandlerFunc {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		finish()
+		fmt.Fprintln(w, "RMQ sender had been stopped!!!", r.URL.String())
+	}
+	return http.HandlerFunc(f)
+}
+
+func StopConsumer(param string, rmqClient *RabbitMQClient, finish context.CancelFunc) http.HandlerFunc {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		finish()
+		fmt.Fprintln(w, "RMQ consumer had been stopped!!!", r.URL.String())
 	}
 	return http.HandlerFunc(f)
 }
 
 func makeServer(addr string, rmqClient *RabbitMQClient) *http.ServeMux {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/start_sender", StartSender("sender", rmqClient))
-	mux.HandleFunc("/start_consumer", StartConsumer("consumer", rmqClient))
+
+	senderFinishCtx, finishSender := context.WithCancel(context.Background())
+	consumerFinishCtx, finishConsumer := context.WithCancel(context.Background())
+	mux.HandleFunc("/start_sender", StartSender("try sender start", rmqClient, senderFinishCtx))
+	mux.HandleFunc("/start_consumer", StartConsumer("try consumer start", rmqClient, consumerFinishCtx))
+	mux.HandleFunc("/stop_sender", StopSender("try sender stop", rmqClient, finishSender))
+	mux.HandleFunc("/stop_consumer", StopConsumer("try consumer stop", rmqClient, finishConsumer))
 	return mux
 }
 

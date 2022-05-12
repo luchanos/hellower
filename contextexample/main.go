@@ -36,7 +36,6 @@ func Example2() {
 	workTime := 50 * time.Millisecond
 	ctx, _ := context.WithTimeout(context.Background(), workTime)
 	result := make(chan int, 1)
-
 	for i := 0; i <= 10; i++ {
 		go worker(ctx, i, result)
 	}
