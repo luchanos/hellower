@@ -71,6 +71,7 @@ func (rmqClient *RabbitMQClient) ConsumeMessages(queue string, ctx context.Conte
 		for d := range msgs {
 			select {
 			case <-ctx.Done():
+				rmqClient.Ch.Close()
 				fmt.Println("Consumer stopped!")
 				return
 			default:
@@ -104,6 +105,7 @@ func StartSender(param string, rmqClient *RabbitMQClient, ctx context.Context) h
 func StartConsumer(param string, rmqClient *RabbitMQClient, ctx context.Context) http.HandlerFunc {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(param)
+		rmqClient.Ch, _ = rmqClient.Conn.Channel()
 		rmqClient.ConsumeMessages("hello", ctx)
 		fmt.Fprintln(w, "RMQ consumer had been start!!!", r.URL.String())
 	}
@@ -126,20 +128,20 @@ func StopConsumer(param string, rmqClient *RabbitMQClient, finish context.Cancel
 	return http.HandlerFunc(f)
 }
 
-func makeServer(addr string, rmqClient *RabbitMQClient) *http.ServeMux {
+func makeServer(addr string, rmqSender, rmqConsumer *RabbitMQClient) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	senderFinishCtx, finishSender := context.WithCancel(context.Background())
 	consumerFinishCtx, finishConsumer := context.WithCancel(context.Background())
-	mux.HandleFunc("/start_sender", StartSender("try sender start", rmqClient, senderFinishCtx))
-	mux.HandleFunc("/start_consumer", StartConsumer("try consumer start", rmqClient, consumerFinishCtx))
-	mux.HandleFunc("/stop_sender", StopSender("try sender stop", rmqClient, finishSender))
-	mux.HandleFunc("/stop_consumer", StopConsumer("try consumer stop", rmqClient, finishConsumer))
+	mux.HandleFunc("/start_sender", StartSender("try sender start", rmqSender, senderFinishCtx))
+	mux.HandleFunc("/start_consumer", StartConsumer("try consumer start", rmqConsumer, consumerFinishCtx))
+	mux.HandleFunc("/stop_sender", StopSender("try sender stop", rmqSender, finishSender))
+	mux.HandleFunc("/stop_consumer", StopConsumer("try consumer stop", rmqConsumer, finishConsumer))
 	return mux
 }
 
-func runServer(addr string, rmqClient *RabbitMQClient) {
-	mux := makeServer(addr, rmqClient)
+func runServer(addr string, rmqSender, rmqConsumer *RabbitMQClient) {
+	mux := makeServer(addr, rmqSender, rmqConsumer)
 
 	server := http.Server{
 		Addr:    addr,
@@ -151,9 +153,11 @@ func runServer(addr string, rmqClient *RabbitMQClient) {
 
 func main() {
 	url := "amqp://guest:guest@0.0.0.0:5672"
-	rmqClient := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
-	rmqClient.SetupRabbitMQClient()
+	rmqSender := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
+	rmqConsumer := RabbitMQClient{URL: url, Conn: nil, Ch: nil}
+	rmqConsumer.SetupRabbitMQClient()
+	rmqSender.SetupRabbitMQClient()
 
-	go runServer(":8081", &rmqClient)
+	go runServer(":8081", &rmqSender, &rmqConsumer)
 	fmt.Scanln()
 }
